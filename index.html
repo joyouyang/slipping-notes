@@ -57,9 +57,9 @@
       <h1>传纸条</h1>
       <div class="sub">Slipping Notes · 你是中间那个人</div>
       <div class="howto">
-        <div>① 左边同学会把纸条丢过来，<b>在纸条到你头边的一瞬间按住屏幕转头</b>才能接住。</div>
+        <div>① 左右两边的同学都会丢纸条过来，<b>在纸条到你头边的一瞬间按住屏幕转头</b>才能接住。</div>
         <div>② 转头时间是有限的，用完就会被老师发现。</div>
-        <div>③ 拿到纸条后，<b>长按蓄力，上滑调整方向，松手丢出去</b>。</div>
+        <div>③ 拿到纸条后，<b>长按蓄力，上滑调整角度，松手丢给另一边的收信人</b>。</div>
         <div>④ 只有落在收信同学的<b>桌子上</b>才算传到；掉地上、丢错桌都失败。</div>
         <div>⑤ 老师会随机出现，<b>看到 ❗ 就老实坐好</b>。</div>
       </div>
@@ -108,7 +108,7 @@
 (() => {
 'use strict';
 // ---------- 配置（发给朋友前填这里） ----------
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const FEEDBACK_URL = '';   // 问卷链接，例如腾讯问卷/金数据；留空则不显示“吐槽一下”
 const UMAMI_SRC = 'https://cloud.umami.is/script.js';
 const UMAMI_ID = '';       // Umami 站点 ID；留空则不加载统计脚本
@@ -137,12 +137,11 @@ document.querySelectorAll('a.fb').forEach(a => {
 const W = 420, H = 780;
 const FLOOR_Y = 520, DESK_Y = 440, DESK_H = 80, DESK_W = 38;
 const HEAD_Y = 386, HAND_Y = 392;
-const PLAYER_X = 170;
-const SENDER_XS = [36, 82, 126];
-const TARGET_LAYOUT = { 1: [310], 2: [262, 366], 3: [240, 313, 386], 4: [236, 286, 336, 386] };
-let TARGET_XS = TARGET_LAYOUT[1];
-const TARGET_NAMES = ['小红', '阿强', '豆豆', '丸子'];
-const SENDER_NAMES = ['小明', '阿花', '胖虎'];
+const PLAYER_X = 210;
+// 每边同学的桌位（按每边人数），side -1 左 / +1 右
+const SLOT_XS = { 1: [[120], [300]], 2: [[150, 100], [270, 320]], 3: [[156, 106, 56], [264, 314, 364]], 4: [[160, 114, 68, 22], [260, 306, 352, 398]] };
+const NAMES = ['小明', '小红', '阿强', '阿花', '豆豆', '胖虎', '丸子', '小军'];
+let MATES = []; // {x, side, name}
 const G = 900;
 const INBOUND_T = 0.8;      // 纸条飞向你的时间
 const WINDUP_T = 0.7;       // 同学举手“嘘”的时间
@@ -150,11 +149,11 @@ const CATCH_FROM = 0.80;    // 接球窗口（飞行进度）
 const TEACHER_WARN = 1.0;   // 老师出现前的预警时间
 
 const LEVELS = [
-  { goal: 3,  senders: 1, targets: 1, headTime: 12, holdTime: 6,   gap: [1.6, 3.0], tGap: [8, 14],  tStay: [1.5, 2.2], preview: 1.0,  title: '能用的纸条人' },
-  { goal: 5,  senders: 1, targets: 2, headTime: 11, holdTime: 5,   gap: [1.3, 2.5], tGap: [6, 11],  tStay: [1.5, 2.5], preview: 1.0,  title: '靠谱的纸条侠' },
-  { goal: 7,  senders: 2, targets: 3, headTime: 10, holdTime: 4.5, gap: [1.0, 2.0], tGap: [5, 9],   tStay: [1.8, 2.8], preview: 0.6,  title: '纸条转运中心' },
-  { goal: 9,  senders: 2, targets: 3, headTime: 9,  holdTime: 4,   gap: [0.8, 1.6], tGap: [4, 8],   tStay: [2.0, 3.0], preview: 0.45, title: '传奇纸条王' },
-  { goal: 12, senders: 3, targets: 4, headTime: 9,  holdTime: 3.5, gap: [0.6, 1.3], tGap: [3.5, 7], tStay: [2.0, 3.2], preview: 0.35, title: '无敌纸条大帝' },
+  { goal: 3,  mates: 1, headTime: 12, holdTime: 6,   gap: [1.6, 3.0], tGap: [8, 14],  tStay: [1.5, 2.2], preview: 1.0,  title: '能用的纸条人' },
+  { goal: 5,  mates: 2, headTime: 11, holdTime: 5,   gap: [1.3, 2.5], tGap: [6, 11],  tStay: [1.5, 2.5], preview: 1.0,  title: '靠谱的纸条侠' },
+  { goal: 7,  mates: 2, headTime: 10, holdTime: 4.5, gap: [1.0, 2.0], tGap: [5, 9],   tStay: [1.8, 2.8], preview: 0.6,  title: '纸条转运中心' },
+  { goal: 9,  mates: 3, headTime: 9,  holdTime: 4,   gap: [0.8, 1.6], tGap: [4, 8],   tStay: [2.0, 3.0], preview: 0.45, title: '传奇纸条王' },
+  { goal: 12, mates: 4, headTime: 9,  holdTime: 3.5, gap: [0.6, 1.3], tGap: [3.5, 7], tStay: [2.0, 3.2], preview: 0.35, title: '无敌纸条大帝' },
 ];
 
 // ---------- DOM / canvas ----------
@@ -257,7 +256,13 @@ let best = 0;
 try { best = parseInt(localStorage.getItem('slipping-notes-best') || '0', 10) || 0; } catch (e) {}
 
 function setupLevel(i) {
-  S.level = i; S.L = LEVELS[i]; TARGET_XS = TARGET_LAYOUT[S.L.targets];
+  S.level = i; S.L = LEVELS[i];
+  MATES = [];
+  const slots = SLOT_XS[S.L.mates];
+  for (let k = 0; k < S.L.mates; k++) {
+    MATES.push({ x: slots[0][k], side: -1, name: NAMES[k * 2] });
+    MATES.push({ x: slots[1][k], side: 1, name: NAMES[k * 2 + 1] });
+  }
   S.delivered = 0; S.hearts = 3; S.head = S.L.headTime; S.turned = false; S.needRelease = false;
   S.holding = null; S.windup = null; S.inbound = null; S.flying = null; S.charging = null;
   S.teacher = { state: 'none', t: 0, dur: 0, next: rand(S.L.tGap[0], S.L.tGap[1]) + 2 };
@@ -266,8 +271,12 @@ function setupLevel(i) {
 
 function addFx(kind, x, y, text, color, life = 1.0) { S.fx.push({ kind, x, y, text, color, life, t: 0 }); }
 
-function pickTarget() { return Math.floor(Math.random() * S.L.targets); }
-function pickSender() { return Math.floor(Math.random() * S.L.senders); }
+// 随机挑一个发信人，收信人在另一边
+function pickPair() {
+  const sender = Math.floor(Math.random() * MATES.length);
+  const others = MATES.map((m, i) => i).filter(i => MATES[i].side !== MATES[sender].side);
+  return { sender, target: others[Math.floor(Math.random() * others.length)] };
+}
 
 function miss(reason) {
   S.hearts--; S.shake = 0.35; SFX.miss();
@@ -351,23 +360,24 @@ function throwParams() {
   const p = S.charging.power;
   const v = 180 + p * 360;
   const a = angle * Math.PI / 180;
-  return { vx: Math.cos(a) * v, vy: -Math.sin(a) * v, angle, power: p };
+  const dir = S.holding ? MATES[S.holding.target].side : 1;
+  return { vx: Math.cos(a) * v * dir, vy: -Math.sin(a) * v, angle, power: p, dir };
 }
 function throwNote() {
   const tp = throwParams();
   if (S.teacher.state === 'in') { gameOver('teacher'); return; }
-  S.flying = { x: PLAYER_X + 16, y: HAND_Y - 6, vx: tp.vx, vy: tp.vy, target: S.holding.target, rot: 0, t: 0 };
+  S.flying = { x: PLAYER_X + 16 * tp.dir, y: HAND_Y - 6, vx: tp.vx, vy: tp.vy, target: S.holding.target, rot: 0, t: 0 };
   S.holding = null; SFX.throwIt();
 }
 
 // 预览轨迹：返回点列表（直到越过桌面高度或出界）
 function previewPath(tp) {
-  const pts = []; let x = PLAYER_X + 16, y = HAND_Y - 6, vx = tp.vx, vy = tp.vy;
+  const pts = []; let x = PLAYER_X + 16 * tp.dir, y = HAND_Y - 6, vx = tp.vx, vy = tp.vy;
   const dt = 1 / 60;
   for (let i = 0; i < 240; i++) {
     vy += G * dt; x += vx * dt; y += vy * dt;
     if (i % 4 === 0) pts.push({ x, y });
-    if ((y >= DESK_Y && vy > 0) || x > W + 20) break;
+    if ((y >= DESK_Y && vy > 0) || x > W + 20 || x < -20) break;
   }
   return pts;
 }
@@ -404,25 +414,25 @@ function update(dt) {
   // 发纸条
   if (!S.holding && !S.inbound && !S.windup && !S.flying && T.state === 'none' && S.delivered < L.goal) {
     S.nextSend -= dt;
-    if (S.nextSend <= 0) S.windup = { sender: pickSender(), t: 0 };
+    if (S.nextSend <= 0) S.windup = Object.assign({ t: 0 }, pickPair());
   }
   if (S.windup) {
     S.windup.t += dt;
     if (S.windup.t >= WINDUP_T) {
-      const sx = SENDER_XS[S.windup.sender];
-      S.inbound = { sender: S.windup.sender, t: 0, x0: sx + 12, y0: HAND_Y - 14, x1: PLAYER_X - 16, y1: HEAD_Y, h: 70 + (PLAYER_X - sx) * 0.25 };
+      const m = MATES[S.windup.sender];
+      S.inbound = { sender: S.windup.sender, target: S.windup.target, side: m.side, t: 0, x0: m.x - m.side * 12, y0: HAND_Y - 14, x1: PLAYER_X + m.side * 16, y1: HEAD_Y, h: 70 + Math.abs(PLAYER_X - m.x) * 0.25 };
       S.windup = null;
     }
   }
   if (S.inbound) {
     const n = S.inbound; n.t += dt / INBOUND_T;
     if (n.t >= CATCH_FROM && n.t <= 1.0 && S.turned) {
-      S.holding = { target: pickTarget(), timer: L.holdTime, max: L.holdTime };
+      S.holding = { target: n.target, timer: L.holdTime, max: L.holdTime };
       S.inbound = null; S.needRelease = true; S.turned = false; S.pointerDown = false;
       SFX.catchIt(); addFx('text', PLAYER_X, 340, '接住了！', '#3b6fd8', 0.8);
     } else if (n.t >= 1.0) {
       S.inbound = null;
-      addFx('drop', PLAYER_X - 20, HEAD_Y, '', '', 0.6);
+      addFx('drop', PLAYER_X + n.side * 20, HEAD_Y, '', '', 0.6);
       S.nextSend = rand(L.gap[0], L.gap[1]) + 0.6;
       miss('没接住！');
     }
@@ -451,25 +461,25 @@ function update(dt) {
     let done = null;
     if (f.vy > 0 && py < DESK_Y && f.y >= DESK_Y) {
       // 越过桌面高度：看落在哪张桌子上
-      for (let i = 0; i < L.targets; i++) {
-        const tx = TARGET_XS[i];
+      for (let i = 0; i < MATES.length; i++) {
+        const tx = MATES[i].x;
         if (f.x >= tx - DESK_W / 2 - 3 && f.x <= tx + DESK_W / 2 + 3) { done = (i === f.target) ? 'ok' : 'wrong'; f.landIdx = i; break; }
       }
       if (f.x >= PLAYER_X - DESK_W / 2 && f.x <= PLAYER_X + DESK_W / 2) { done = 'self'; }
     }
     if (!done && f.y >= FLOOR_Y) done = 'floor';
-    if (!done && f.x > W + 30) done = 'window';
+    if (!done && (f.x > W + 30 || f.x < -30)) done = f.x < 0 ? 'door' : 'window';
     if (done) {
       S.flying = null;
       S.nextSend = rand(L.gap[0], L.gap[1]);
       if (done === 'ok') {
         S.delivered++; S.totalDelivered++; SFX.land();
-        addFx('text', TARGET_XS[f.landIdx], DESK_Y - 70, ['收到！', '谢啦', '太准了', '✓'][Math.floor(Math.random() * 4)], '#3b6fd8', 1.0);
-        addFx('note', TARGET_XS[f.landIdx] + rand(-8, 8), DESK_Y - 4, '', '', 1.2);
+        addFx('text', MATES[f.landIdx].x, DESK_Y - 70, ['收到！', '谢啦', '太准了', '✓'][Math.floor(Math.random() * 4)], '#3b6fd8', 1.0);
+        addFx('note', MATES[f.landIdx].x + rand(-8, 8), DESK_Y - 4, '', '', 1.2);
         if (S.delivered >= L.goal) levelClear();
       } else if (done === 'wrong') {
-        addFx('text', TARGET_XS[f.landIdx], DESK_Y - 70, '不是给我的…', '#d9534f', 1.2);
-        addFx('note', TARGET_XS[f.landIdx], DESK_Y - 4, '', '', 0.8);
+        addFx('text', MATES[f.landIdx].x, DESK_Y - 70, '不是给我的…', '#d9534f', 1.2);
+        addFx('note', MATES[f.landIdx].x, DESK_Y - 4, '', '', 0.8);
         miss('丢错桌了！');
       } else if (done === 'floor') {
         addFx('drop', f.x, FLOOR_Y - 6, '', '', 0.8);
@@ -477,6 +487,8 @@ function update(dt) {
       } else if (done === 'self') {
         addFx('note', PLAYER_X, DESK_Y - 4, '', '', 0.8);
         miss('丢回自己桌上了…');
+      } else if (done === 'door') {
+        miss('飞到走廊去了！');
       } else {
         miss('飞出窗外了！');
       }
@@ -502,17 +514,17 @@ function drawDesk(x, highlight) {
 
 // 坐着的同学：faceDir -1 朝左, 0 正面, 1 朝右
 function drawStudent(x, opts = {}) {
-  const { faceDir = 0, armUp = false, name = '', nameColor = '#8a8a8a', isPlayer = false, holdingNote = false, chargeAngle = null, nervous = false } = opts;
+  const { faceDir = 0, armUp = false, dir = 1, name = '', nameColor = '#8a8a8a', isPlayer = false, holdingNote = false, chargeAngle = null, nervous = false } = opts;
   ink(2.2);
   const hy = HEAD_Y + (nervous ? jit(2) : 0);
   // 身体
   wl(x, hy + 16, x, DESK_Y - 2);
   // 手臂
-  if (armUp) { wl(x, hy + 26, x + 14, hy + 2); }
+  if (armUp) { wl(x, hy + 26, x + 14 * dir, hy + 2); }
   else if (chargeAngle !== null) {
     const a = chargeAngle * Math.PI / 180;
-    wl(x, hy + 28, x + Math.cos(a) * 24, hy + 28 - Math.sin(a) * 24);
-  } else if (holdingNote) { wl(x, hy + 28, x + 18, hy + 10); }
+    wl(x, hy + 28, x + Math.cos(a) * 24 * dir, hy + 28 - Math.sin(a) * 24);
+  } else if (holdingNote) { wl(x, hy + 28, x + 18 * dir, hy + 10); }
   else { wl(x, hy + 28, x - 10, DESK_Y - 4); wl(x, hy + 28, x + 10, DESK_Y - 4); }
   // 头
   wcirc(x, hy, 15, '#fbf8ef');
@@ -586,8 +598,8 @@ function drawHUD() {
   const hintY = 600;
   ink(1.5, '#8a8a8a');
   if (S.holding) {
-    const tgt = TARGET_NAMES[S.holding.target];
-    txt(`给 ${tgt} 的纸条 — 长按蓄力，上滑抬高角度，松手丢出去`, W / 2, hintY, 14, '#2b2b2b');
+    const tm = MATES[S.holding.target];
+    txt(`给${tm.side < 0 ? '左边' : '右边'} ${tm.name} 的纸条 — 长按蓄力，上滑抬高角度，松手丢`, W / 2, hintY, 14, '#2b2b2b');
     if (S.charging) {
       const tp = throwParams();
       txt(`力度 ${Math.round(tp.power * 100)}%   角度 ${Math.round(tp.angle)}°`, W / 2, hintY + 28, 15, '#3b6fd8');
@@ -597,9 +609,9 @@ function drawHUD() {
   } else if (S.teacher.state === 'in') {
     txt('老实坐好，别转头也别丢', W / 2, hintY, 15, '#d9534f');
   } else if (S.inbound) {
-    txt('纸条来了——到头边时按住转头！', W / 2, hintY, 15, '#3b6fd8');
+    txt(`${S.inbound.side < 0 ? '左边' : '右边'}纸条来了——到头边时按住转头！`, W / 2, hintY, 15, '#3b6fd8');
   } else if (S.windup) {
-    txt('左边有人要递纸条，准备…', W / 2, hintY, 14, '#2b2b2b');
+    txt(`${MATES[S.windup.sender].side < 0 ? '左边' : '右边'}有人要递纸条，准备…`, W / 2, hintY, 14, '#2b2b2b');
   } else {
     txt('按住屏幕 = 转头（会消耗转头时间）', W / 2, hintY, 14, '#8a8a8a');
   }
@@ -626,33 +638,32 @@ function draw() {
   wl(0, FLOOR_Y, W, FLOOR_Y);
 
   // 桌子
-  for (let i = 0; i < L.senders; i++) drawDesk(SENDER_XS[i], false);
   drawDesk(PLAYER_X, false);
-  for (let i = 0; i < L.targets; i++) drawDesk(TARGET_XS[i], S.holding && S.holding.target === i);
+  for (let i = 0; i < MATES.length; i++) drawDesk(MATES[i].x, S.holding && S.holding.target === i);
 
-  // 同学们
-  for (let i = 0; i < L.senders; i++) {
+  // 同学们：谁都可能递、谁都可能收
+  for (let i = 0; i < MATES.length; i++) {
+    const m = MATES[i];
     const up = S.windup && S.windup.sender === i;
-    drawStudent(SENDER_XS[i], { faceDir: 1, armUp: !!up, name: SENDER_NAMES[i] });
-    if (up) {
-      const sx = SENDER_XS[i];
-      drawNote(sx + 16, HEAD_Y - 2, -0.3, 0.9);
-      txt('嘘~', sx + 6, HEAD_Y - 34, 14, '#3b6fd8');
-    }
-  }
-  for (let i = 0; i < L.targets; i++) {
     const want = S.holding && S.holding.target === i;
-    drawStudent(TARGET_XS[i], { faceDir: want ? -1 : 0, name: TARGET_NAMES[i], nameColor: want ? '#3b6fd8' : '#8a8a8a', nervous: want });
-    if (want) txt('给我给我', TARGET_XS[i], HEAD_Y - 40, 12, '#3b6fd8');
+    const toPlayer = -m.side; // 面向你的方向
+    drawStudent(m.x, { faceDir: (up || want) ? toPlayer : 0, armUp: !!up, dir: toPlayer, name: m.name, nameColor: want ? '#3b6fd8' : '#8a8a8a', nervous: want });
+    if (up) {
+      drawNote(m.x + 16 * toPlayer, HEAD_Y - 2, -0.3 * toPlayer, 0.9);
+      txt('嘘~', m.x + 6 * toPlayer, HEAD_Y - 34, 14, '#3b6fd8');
+    }
+    if (want) txt('给我给我', m.x, HEAD_Y - 40, 12, '#3b6fd8');
   }
 
-  // 玩家
+  // 玩家：转头朝纸条来的方向；拿着纸条时面朝收信人
   const tp = S.charging ? throwParams() : null;
-  drawStudent(PLAYER_X, { faceDir: S.turned ? -1 : (S.holding ? 1 : 0), isPlayer: true, holdingNote: !!S.holding, chargeAngle: tp ? tp.angle : null });
+  const inSide = S.inbound ? S.inbound.side : (S.windup ? MATES[S.windup.sender].side : -1);
+  const outDir = S.holding ? MATES[S.holding.target].side : 1;
+  drawStudent(PLAYER_X, { faceDir: S.turned ? inSide : (S.holding ? outDir : 0), dir: outDir, isPlayer: true, holdingNote: !!S.holding, chargeAngle: tp ? tp.angle : null });
   if (S.holding) {
-    const hx = tp ? PLAYER_X + Math.cos(tp.angle * Math.PI / 180) * 24 : PLAYER_X + 18;
+    const hx = tp ? PLAYER_X + Math.cos(tp.angle * Math.PI / 180) * 24 * outDir : PLAYER_X + 18 * outDir;
     const hy = tp ? HEAD_Y + 28 - Math.sin(tp.angle * Math.PI / 180) * 24 : HEAD_Y + 10;
-    drawNote(hx + 4, hy - 6, -0.2, 1, '给' + TARGET_NAMES[S.holding.target]);
+    drawNote(hx + 4 * outDir, hy - 6, -0.2 * outDir, 1, '给' + MATES[S.holding.target].name);
     // 持有倒计时
     const fr = clamp(S.holding.timer / S.holding.max, 0, 1);
     ink(2);
@@ -661,7 +672,7 @@ function draw() {
     ctx.fillRect(PLAYER_X - 22, HEAD_Y - 36, 44 * fr, 4);
     if (fr < 0.35 && Math.floor(S.time * 8) % 2 === 0) txt('快丢！', PLAYER_X, HEAD_Y - 50, 13, '#d9534f');
   }
-  if (S.turned) txt('👀', PLAYER_X - 30, HEAD_Y - 24, 16);
+  if (S.turned) txt('👀', PLAYER_X + 30 * inSide, HEAD_Y - 24, 16);
 
   // 预览轨迹
   if (S.charging && tp) {
@@ -680,7 +691,7 @@ function draw() {
     const n = S.inbound, t = n.t;
     const x = lerp(n.x0, n.x1, t), y = lerp(n.y0, n.y1, t) - n.h * 4 * t * (1 - t);
     drawNote(x, y, t * 5, 1);
-    if (t >= CATCH_FROM - 0.12) { ink(2, '#3b6fd8'); wcirc(PLAYER_X - 16, HEAD_Y, 22 + Math.sin(S.time * 30) * 2); }
+    if (t >= CATCH_FROM - 0.12) { ink(2, '#3b6fd8'); wcirc(PLAYER_X + 16 * n.side, HEAD_Y, 22 + Math.sin(S.time * 30) * 2); }
   }
   // 飞出去的纸条
   if (S.flying) drawNote(S.flying.x, S.flying.y, S.flying.rot, 1);
@@ -716,7 +727,7 @@ function introLevel(i) {
   setupLevel(i);
   const L = LEVELS[i];
   $('lv-title').textContent = `第${i + 1}关`;
-  $('lv-note').textContent = `帮 ${L.senders} 个同学传 ${L.goal} 张纸条 · 收信人 ${L.targets} 个`;
+  $('lv-note').textContent = `左右各 ${L.mates} 个同学互传，一共 ${L.goal} 张纸条`;
   $('lv-sub').textContent = `转头时间 ${L.headTime} 秒 · 每张纸条 ${L.holdTime} 秒内必须丢出去` + (L.preview < 1 ? ' · 轨迹只给你看一截' : '');
   $('btn-go').textContent = i === 0 ? '上课了，开始' : '继续上课';
   showOverlay('ov-level'); S.screen = 'level';
@@ -738,7 +749,7 @@ function refreshTitle() {
   else b.style.display = 'none';
 }
 refreshTitle();
-if (location.hash === '#play') { introLevel(0); startPlay(); }
+{ const m = /^#play(\d)?$/.exec(location.hash); if (m) { introLevel(clamp((parseInt(m[1] || '1', 10) || 1) - 1, 0, LEVELS.length - 1)); startPlay(); } }
 })();
 </script>
 </body>
