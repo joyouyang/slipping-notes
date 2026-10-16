@@ -6,6 +6,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#fbf8ef">
+<meta name="description" content="你是两个传纸条同学之间的中间人：看准时机转头接纸条，蓄力丢到对面桌上，别让老师发现。五关五个称号，手绘小游戏。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="传纸条 · 你是中间那个人">
+<meta property="og:description" content="看准时机转头接纸条，蓄力丢到对面桌上，别让老师发现。五关五个称号。">
+<meta property="og:image" content="cover.png">
+<meta itemprop="name" content="传纸条 · 你是中间那个人">
+<meta itemprop="image" content="cover.png">
+<meta name="twitter:card" content="summary_large_image">
 <title>传纸条 · Slipping Notes</title>
 <style>
   :root{
@@ -35,6 +43,8 @@
   .note{position:relative;display:inline-block;background:#fffdf3;border:2px solid var(--ink);padding:8px 14px;transform:rotate(-3deg);
     box-shadow:2px 3px 0 var(--ink);font-size:18px;margin-bottom:14px}
   .tiny{font-size:13px;color:var(--pencil);margin-top:10px}
+  a.btn{text-decoration:none;display:inline-block}
+  #corner{position:absolute;right:8px;bottom:6px;font-size:11px;color:#c9c3b2;pointer-events:none}
 </style>
 </head>
 <body>
@@ -43,6 +53,7 @@
     <canvas id="c"></canvas>
 
     <div id="ov-title" class="overlay show">
+      <img id="cover" src="cover.png" alt="传纸条" style="width:220px;max-width:70%;margin-bottom:4px">
       <h1>传纸条</h1>
       <div class="sub">Slipping Notes · 你是中间那个人</div>
       <div class="howto">
@@ -54,7 +65,7 @@
       </div>
       <button class="btn" id="btn-start">开始 第1关</button>
       <button class="btn small" id="btn-continue" style="display:none">继续 第?关</button>
-      <div class="tiny">五关 · 五个称号 · 手绘极简</div>
+      <div class="tiny">五关 · 五个称号 · 手绘极简 · <span id="ver"></span></div>
     </div>
 
     <div id="ov-level" class="overlay">
@@ -69,6 +80,7 @@
       <div class="title-badge" id="clear-title">能用的纸条人</div>
       <div class="sub" id="clear-stats"></div>
       <button class="btn" id="btn-next">下一关</button>
+      <a class="btn small fb" href="#" target="_blank" rel="noopener" style="display:none">吐槽一下 ✎</a>
     </div>
 
     <div id="ov-over" class="overlay">
@@ -77,14 +89,17 @@
       <div class="sub" id="over-stats"></div>
       <button class="btn" id="btn-retry">再来一次</button>
       <button class="btn small" id="btn-home">回首页</button>
+      <a class="btn small fb" href="#" target="_blank" rel="noopener" style="display:none">吐槽一下 ✎</a>
     </div>
 
+    <div id="corner"></div>
     <div id="ov-win" class="overlay">
       <div class="sub">全班的纸条都归你管了</div>
       <h1 style="font-size:34px">无敌纸条大帝</h1>
       <div class="title-badge" style="font-size:20px">五关全通 · 老师至今不知道</div>
       <div class="sub" id="win-stats"></div>
       <button class="btn" id="btn-again">从头再传一遍</button>
+      <a class="btn small fb" href="#" target="_blank" rel="noopener" style="display:none">吐槽一下 ✎</a>
     </div>
   </div>
 </div>
@@ -92,6 +107,32 @@
 <script>
 (() => {
 'use strict';
+// ---------- 配置（发给朋友前填这里） ----------
+const VERSION = '0.2.0';
+const FEEDBACK_URL = '';   // 问卷链接，例如腾讯问卷/金数据；留空则不显示“吐槽一下”
+const UMAMI_SRC = 'https://cloud.umami.is/script.js';
+const UMAMI_ID = '';       // Umami 站点 ID；留空则不加载统计脚本
+
+// ---------- 来源 / 会话 / 埋点 ----------
+const FROM = (() => { try { const q = new URLSearchParams(location.search).get('from'); if (q) localStorage.setItem('sn-from', q); return q || localStorage.getItem('sn-from') || ''; } catch (e) { return ''; } })();
+const SID = (() => { try { let s = sessionStorage.getItem('sn-sid'); if (!s) { s = Math.random().toString(36).slice(2, 10); sessionStorage.setItem('sn-sid', s); } return s; } catch (e) { return 'x'; } })();
+function track(name, data = {}) {
+  const payload = Object.assign({ v: VERSION, from: FROM, sid: SID }, data);
+  try { if (window.umami && typeof window.umami.track === 'function') window.umami.track(name, payload); } catch (e) {}
+  try { if (window.va) window.va('event', { name, data: payload }); } catch (e) {}
+}
+if (UMAMI_ID) { const sc = document.createElement('script'); sc.defer = true; sc.src = UMAMI_SRC; sc.setAttribute('data-website-id', UMAMI_ID); document.head.appendChild(sc); }
+if (/vercel\.app$/.test(location.hostname) || (location.protocol === 'https:' && !/github\.io$/.test(location.hostname))) {
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+  const sc = document.createElement('script'); sc.defer = true; sc.src = '/_vercel/insights/script.js'; document.head.appendChild(sc);
+}
+document.getElementById('ver').textContent = 'v' + VERSION;
+document.getElementById('corner').textContent = 'v' + VERSION + (FROM ? ' · ' + FROM : '');
+document.querySelectorAll('a.fb').forEach(a => {
+  if (!FEEDBACK_URL) return;
+  a.style.display = '';
+  a.addEventListener('click', () => { a.href = FEEDBACK_URL + (FEEDBACK_URL.includes('?') ? '&' : '?') + 'v=' + VERSION + '&lv=' + (window.__snLevel || 0) + '&from=' + encodeURIComponent(FROM); track('feedback_click', { level: window.__snLevel || 0 }); });
+});
 // ---------- 基本尺寸（逻辑坐标） ----------
 const W = 420, H = 780;
 const FLOOR_Y = 520, DESK_Y = 440, DESK_H = 80, DESK_W = 38;
@@ -238,6 +279,7 @@ function gameOver(why) {
   if (S.over) return;
   S.over = why; S.shake = 0.5; S.turned = false; S.charging = null;
   SFX.over();
+  track('game_over', { level: S.level + 1, reason: why, delivered: S.delivered, goal: S.L.goal, time: Math.round(S.levelTime) });
   const msg = { teacher: '被老师抓个正着！', head: '转头太多次，老师早就盯上你了！', hearts: '纸条掉了太多，没人敢再找你传了…' }[why];
   setTimeout(() => {
     $('over-reason').textContent = msg;
@@ -251,6 +293,7 @@ function levelClear() {
   S.over = 'clear'; S.turned = false; S.charging = null; SFX.clear();
   best = Math.max(best, S.level + 1);
   try { localStorage.setItem('slipping-notes-best', String(best)); } catch (e) {}
+  track(S.level === LEVELS.length - 1 ? 'game_win' : 'level_clear', { level: S.level + 1, time: Math.round(S.levelTime), headLeft: Math.round(S.head), hearts: S.hearts });
   setTimeout(() => {
     if (S.level === LEVELS.length - 1) {
       $('win-stats').textContent = `一共传了 ${S.totalDelivered} 张纸条`;
@@ -678,9 +721,9 @@ function introLevel(i) {
   $('btn-go').textContent = i === 0 ? '上课了，开始' : '继续上课';
   showOverlay('ov-level'); S.screen = 'level';
 }
-function startPlay() { showOverlay(null); S.screen = 'play'; S.levelTime = 0; audioInit(); }
+function startPlay() { showOverlay(null); S.screen = 'play'; S.levelTime = 0; audioInit(); window.__snLevel = S.level + 1; track('level_start', { level: S.level + 1 }); }
 
-$('btn-start').addEventListener('click', () => { audioInit(); S.totalDelivered = 0; introLevel(0); });
+$('btn-start').addEventListener('click', () => { audioInit(); S.totalDelivered = 0; track('game_start', { best }); introLevel(0); });
 $('btn-continue').addEventListener('click', () => { audioInit(); introLevel(Math.min(best, LEVELS.length - 1)); });
 $('btn-go').addEventListener('click', startPlay);
 $('btn-next').addEventListener('click', () => introLevel(S.level + 1));
